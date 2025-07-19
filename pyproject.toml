@@ -2,9 +2,10 @@
 name = "chronolog"
 version = "1.0.0"
 description = "A frictionless, local-first version control system for creative workflows"
-authors = [{name = "ChronoLog Team"}]
+authors = [{Vilas Magare"}]
 readme = "README.md"
 requires-python = ">=3.9"
+license = {text = "MIT"}
 dependencies = [
     "watchdog>=3.0.0",
     "click>=8.1.0",
