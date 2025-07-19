@@ -13,7 +13,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "chronolog=chronolog.cli:main",
+            "chronolog=chronolog.main:main",
         ],
     },
     python_requires=">=3.9",
