@@ -1,0 +1,180 @@
+/* ChronoLog TUI Styles */
+
+/* Global App Styles */
+App {
+    background: $background;
+    color: $text;
+}
+
+/* Header and Footer */
+Header {
+    dock: top;
+    height: 1;
+    background: $primary;
+    color: $text-primary;
+}
+
+Footer {
+    dock: bottom;
+    height: 1;
+    background: $surface;
+    color: $text-muted;
+}
+
+/* Dashboard Styles */
+#dashboard-title {
+    content-align: center middle;
+    height: 3;
+    text-style: bold;
+    background: $primary;
+    color: $text-primary;
+}
+
+.dashboard-content {
+    padding: 1;
+    height: 1fr;
+}
+
+.status-container {
+    height: auto;
+    margin: 1 0;
+}
+
+.status-column {
+    width: 50%;
+    padding: 0 2;
+}
+
+.label {
+    text-style: bold;
+    color: $text-muted;
+    margin: 1 0 0 0;
+}
+
+#repo-status, #daemon-status {
+    margin: 0 0 1 0;
+    padding: 0 1;
+}
+
+.status-good {
+    color: $success;
+    text-style: bold;
+}
+
+.status-error {
+    color: $error;
+    text-style: bold;
+}
+
+.status-warning {
+    color: $warning;
+    text-style: bold;
+}
+
+#instructions {
+    margin: 2 0 0 0;
+    padding: 1;
+    background: $surface;
+    border: solid $border;
+    border-title-align: left;
+}
+
+/* History View Styles */
+#history-title {
+    content-align: center middle;
+    height: 3;
+    text-style: bold;
+    background: $primary;
+    color: $text-primary;
+}
+
+.history-content {
+    padding: 1;
+    height: 1fr;
+}
+
+.history-container {
+    height: 1fr;
+    margin: 1 0;
+}
+
+.files-panel {
+    width: 50%;
+    padding: 0 1 0 0;
+}
+
+.versions-panel {
+    width: 50%;
+    padding: 0 0 0 1;
+}
+
+#files-table, #versions-table {
+    height: 1fr;
+    border: solid $border;
+}
+
+#history-instructions {
+    margin: 1 0 0 0;
+    text-align: center;
+    color: $text-muted;
+}
+
+/* File Detail Screen Styles */
+#detail-title {
+    content-align: center middle;
+    height: 2;
+    text-style: bold;
+    background: $accent;
+    color: $text-primary;
+}
+
+.detail-content {
+    padding: 1;
+    height: 1fr;
+}
+
+.detail-header {
+    height: auto;
+    margin: 0 0 1 0;
+}
+
+.detail-info {
+    padding: 1;
+    background: $surface;
+    border: solid $border;
+}
+
+#version-content {
+    height: 1fr;
+    padding: 1;
+    background: $surface;
+    border: solid $border;
+    overflow: auto;
+}
+
+/* DataTable Customization */
+DataTable {
+    background: $surface;
+}
+
+DataTable > .datatable--header {
+    background: $primary;
+    color: $text-primary;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: $accent;
+    color: $text-primary;
+}
+
+/* General Widget Styles */
+Static {
+    overflow: auto;
+}
+
+Label {
+    overflow: hidden;
+}
+
+/* Note: Responsive design not supported in current Textual version */

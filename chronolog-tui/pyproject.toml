@@ -1,0 +1,21 @@
+[project]
+name = "chronolog-tui"
+version = "0.1.0"
+description = "Terminal User Interface for ChronoLog version control system"
+authors = [{name = "Vilas Magare"}]
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+dependencies = [
+    "textual>=0.58.0",
+]
+
+[project.scripts]
+chronolog-tui = "chronolog_tui.main:main"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["chronolog_tui"]
