@@ -6,6 +6,9 @@ from typing import List, Dict, Optional, Tuple
 from .storage import Storage
 from .daemon import Daemon
 from .search.searcher import Searcher, SearchFilter
+from .diff.word_diff import WordDiffer
+from .diff.semantic_diff import SemanticDiffer
+from .diff.binary_diff import BinaryDiffer
 
 
 class ChronologRepo:
@@ -76,9 +79,15 @@ class ChronologRepo:
         
         return content
 
-    def diff(self, hash1: str, hash2: str = None, current: bool = False) -> str:
+    def diff(self, hash1: str, hash2: str = None, current: bool = False, diff_type: str = "line") -> str:
         """
         Computes the diff between two versions or between a version and current file.
+        
+        Args:
+            hash1: First version hash
+            hash2: Second version hash (required unless current=True)
+            current: Compare with current file instead of hash2
+            diff_type: Type of diff - "line", "word", "semantic", or "binary"
         """
         # Get content for first hash
         content1 = self.show(hash1)
@@ -104,12 +113,45 @@ class ChronologRepo:
             content2 = self.show(hash2)
             label2 = hash2[:8]
         
-        # Convert to lines for diff
+        # Handle binary diff
+        if diff_type == "binary":
+            differ = BinaryDiffer()
+            result = differ.diff_binary(content1, content2, file_path)
+            return differ.format_binary_diff(result)
+        
+        # Try to decode as text
         try:
-            lines1 = content1.decode('utf-8').splitlines(keepends=True)
-            lines2 = content2.decode('utf-8').splitlines(keepends=True)
+            text1 = content1.decode('utf-8')
+            text2 = content2.decode('utf-8')
         except UnicodeDecodeError:
-            raise ValueError("Cannot diff binary files")
+            # Fall back to binary diff
+            differ = BinaryDiffer()
+            result = differ.diff_binary(content1, content2, file_path)
+            return differ.format_binary_diff(result)
+        
+        # Handle different diff types
+        if diff_type == "word":
+            differ = WordDiffer()
+            word_diffs = differ.diff_lines_with_words(text1, text2)
+            output = []
+            for line_num, words in word_diffs:
+                formatted = differ.format_word_diff(words, use_color=True)
+                output.append(f"{line_num:4d}: {formatted}")
+            return '\n'.join(output)
+        
+        elif diff_type == "semantic":
+            differ = SemanticDiffer()
+            language = differ.detect_language(file_path)
+            if language:
+                changes = differ.diff_semantic(text1, text2, language)
+                return differ.format_semantic_diff(changes)
+            else:
+                # Fall back to line diff for unsupported languages
+                diff_type = "line"
+        
+        # Default line diff
+        lines1 = text1.splitlines(keepends=True)
+        lines2 = text2.splitlines(keepends=True)
         
         # Generate diff
         diff_lines = difflib.unified_diff(

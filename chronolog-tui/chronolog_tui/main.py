@@ -10,6 +10,7 @@ from textual.containers import Container, Vertical, Horizontal
 
 from .views.dashboard_view import DashboardView
 from .views.history_view import HistoryView
+from .views.file_tree_view import FileTreeScreen
 from .api_bridge import ChronologBridge
 
 
@@ -18,6 +19,7 @@ class DashboardScreen(Screen):
     
     BINDINGS = [
         Binding("h", "show_history", "History"),
+        Binding("f", "show_file_tree", "Files"),
         Binding("i", "init_repo", "Initialize"),
         Binding("d", "toggle_daemon", "Toggle Daemon"),
         Binding("b", "show_branches", "Branches"),
@@ -38,6 +40,10 @@ class DashboardScreen(Screen):
     def action_show_history(self):
         """Show the history view."""
         self.app.push_screen(HistoryScreen(self.bridge))
+    
+    def action_show_file_tree(self):
+        """Show the file tree view."""
+        self.app.push_screen(FileTreeScreen(self.bridge))
     
     def action_init_repo(self):
         """Initialize a new repository."""

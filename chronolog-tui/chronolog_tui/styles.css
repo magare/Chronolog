@@ -283,4 +283,57 @@ ModalScreen {
     color: $text-muted;
 }
 
+/* File Tree Styles */
+.file-tree-controls {
+    height: 3;
+    padding: 0 1;
+    margin: 0 0 1 0;
+    background: $surface;
+}
+
+.file-filter-input {
+    width: 50%;
+    margin: 0 1 0 0;
+}
+
+#toggle-hidden, #toggle-changed {
+    width: 10;
+    margin: 0 1 0 0;
+}
+
+#file-count {
+    width: 20;
+    content-align: right middle;
+    color: $text-muted;
+}
+
+.file-tree {
+    height: 1fr;
+    background: $surface;
+    border: solid $border;
+    padding: 1;
+}
+
+Tree {
+    background: $surface;
+    padding: 0;
+}
+
+Tree > .tree--label {
+    color: $text;
+}
+
+Tree > .tree--guides {
+    color: $text-muted;
+}
+
+Tree > .tree--cursor {
+    background: $accent;
+    color: $text-primary;
+}
+
+Tree > .tree--highlight {
+    background: $primary;
+}
+
 /* Note: Responsive design not supported in current Textual version */
