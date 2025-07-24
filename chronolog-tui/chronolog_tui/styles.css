@@ -113,6 +113,23 @@ Footer {
     border: solid $border;
 }
 
+/* Focus indicators for tables */
+.table-focused {
+    border: solid $accent;
+}
+
+#files-table.table-focused {
+    border: solid $accent;
+    border-title-align: left;
+    border-title-style: bold;
+}
+
+#versions-table.table-focused {
+    border: solid $accent;
+    border-title-align: left;
+    border-title-style: bold;
+}
+
 #history-instructions {
     margin: 1 0 0 0;
     text-align: center;
@@ -175,6 +192,95 @@ Static {
 
 Label {
     overflow: hidden;
+}
+
+/* Branch Management Styles */
+#branch-title, #tag-title {
+    content-align: center middle;
+    height: 3;
+    text-style: bold;
+    background: $primary;
+    color: $text-primary;
+}
+
+#branch-container, #tag-container {
+    padding: 1;
+    height: 1fr;
+}
+
+#branches-table, #tags-table {
+    height: 1fr;
+    margin: 1 0;
+    border: solid $border;
+}
+
+#branch-actions, #tag-actions {
+    margin: 1 0 0 0;
+    text-align: center;
+    color: $text-muted;
+}
+
+/* Modal Styles */
+ModalScreen {
+    align: center middle;
+}
+
+#modal-container {
+    width: 50;
+    height: auto;
+    padding: 2;
+    background: $surface;
+    border: solid $accent;
+}
+
+#modal-container Label {
+    margin: 1 0;
+}
+
+#modal-container Input {
+    margin: 1 0;
+}
+
+/* Search Screen Styles */
+#search-title {
+    content-align: center middle;
+    height: 3;
+    text-style: bold;
+    background: $primary;
+    color: $text-primary;
+}
+
+#search-container {
+    padding: 1;
+    height: 1fr;
+}
+
+#search-bar {
+    height: 3;
+    margin: 1 0;
+}
+
+#search-input {
+    width: 70%;
+}
+
+#search-options {
+    width: 30%;
+    content-align: center middle;
+    color: $text-muted;
+    padding: 0 2;
+}
+
+#search-results {
+    height: 1fr;
+    margin: 1 0;
+    border: solid $border;
+}
+
+#search-instructions {
+    margin: 1 0 0 0;
+    text-align: center;
+    color: $text-muted;
 }
 
 /* Note: Responsive design not supported in current Textual version */

@@ -26,6 +26,8 @@ class DashboardView(Static):
                     Label(self._get_repo_status_text(), id="repo-status"),
                     Label("Repository Path:", classes="label"),
                     Label(self._get_repo_path_text(), id="repo-path"),
+                    Label("Current Branch:", classes="label"),
+                    Label(self._get_branch_text(), id="current-branch"),
                     classes="status-column"
                 ),
                 Vertical(
@@ -54,11 +56,13 @@ class DashboardView(Static):
         repo_path_label = self.query_one("#repo-path", Label)
         daemon_status_label = self.query_one("#daemon-status", Label)
         actions_label = self.query_one("#available-actions", Label)
+        branch_label = self.query_one("#current-branch", Label)
         
         repo_status_label.update(self._get_repo_status_text())
         repo_path_label.update(self._get_repo_path_text())
         daemon_status_label.update(self._get_daemon_status_text())
         actions_label.update(self._get_actions_text())
+        branch_label.update(self._get_branch_text())
         
         # Update status colors
         if self._status.is_repository:
@@ -99,10 +103,19 @@ class DashboardView(Static):
         else:
             return "⚠ Stopped (Files not being tracked)"
     
+    def _get_branch_text(self) -> str:
+        """Get current branch text."""
+        if not self._status.is_repository:
+            return "N/A (No repository)"
+        else:
+            current_branch = self.bridge.get_current_branch()
+            branch_count = len(self.bridge.get_branches()[1])
+            return f"{current_branch} ({branch_count} branches total)"
+    
     def _get_actions_text(self) -> str:
         """Get available actions text."""
         if self._status.is_repository:
-            return "View History [h] • Toggle Daemon [d]"
+            return "History [h] • Search [s] • Branches [b] • Tags [t] • Daemon [d]"
         else:
             return "Initialize Repository [i]"
     
@@ -121,6 +134,9 @@ class DashboardView(Static):
             return (
                 f"Repository is ready! {files_info}\n\n"
                 "• Press [h] to view file history and versions\n"
+                "• Press [s] to search content across all versions\n"
+                "• Press [b] to manage branches\n"
+                "• Press [t] to manage tags\n"
                 "• Press [d] to start/stop the file watching daemon\n"
                 "• Press [q] to quit the application\n\n"
                 "The daemon automatically creates new versions when files change."

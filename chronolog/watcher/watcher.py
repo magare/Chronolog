@@ -7,6 +7,7 @@ from typing import Dict, Set
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileModifiedEvent
 from ..storage import Storage
+from ..ignore import IgnorePatterns
 
 
 class DebouncedFileHandler(FileSystemEventHandler):
@@ -16,7 +17,7 @@ class DebouncedFileHandler(FileSystemEventHandler):
         self.debounce_seconds = debounce_seconds
         self.pending_files: Dict[str, float] = {}
         self.lock = threading.Lock()
-        self.ignored_patterns = {'.chronolog', '.git', '__pycache__', '.pyc', '.pyo'}
+        self.ignore_patterns = IgnorePatterns(base_path)
         
         # Start the processing thread
         self.processing_thread = threading.Thread(target=self._process_pending_files, daemon=True)
@@ -25,16 +26,11 @@ class DebouncedFileHandler(FileSystemEventHandler):
     def should_ignore(self, file_path: str) -> bool:
         path = Path(file_path)
         
-        # Ignore temporary files
-        if path.name.endswith('.tmp') or '.tmp.' in path.name or path.name.startswith('.'):
+        # Check if path should be ignored based on patterns
+        if self.ignore_patterns.should_ignore(path):
             return True
-            
-        path_parts = path.parts
-        for pattern in self.ignored_patterns:
-            if any(pattern in part for part in path_parts):
-                return True
         
-        # Only process text files for Phase 1
+        # Additionally check if file is binary
         try:
             if not path.exists():  # File might have been deleted/moved
                 return True
@@ -51,6 +47,13 @@ class DebouncedFileHandler(FileSystemEventHandler):
     
     def on_modified(self, event):
         if event.is_directory:
+            return
+        
+        # Special handling for .chronologignore file
+        if Path(event.src_path).name == '.chronologignore':
+            print(f"[ChronoLog] Reloading ignore patterns from .chronologignore")
+            sys.stdout.flush()
+            self.ignore_patterns.reload()
             return
         
         if self.should_ignore(event.src_path):

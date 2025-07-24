@@ -1,10 +1,11 @@
 import os
 import difflib
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 from .storage import Storage
 from .daemon import Daemon
+from .search.searcher import Searcher, SearchFilter
 
 
 class ChronologRepo:
@@ -35,6 +36,10 @@ class ChronologRepo:
 
         # Initialize storage
         storage = Storage(chronolog_dir)
+        
+        # Create default .chronologignore file
+        from .ignore import IgnorePatterns
+        IgnorePatterns.create_default_ignore_file(repo_path)
 
         # Start the daemon
         daemon = Daemon(repo_path)
@@ -153,6 +158,102 @@ class ChronologRepo:
         Returns a Daemon instance for this repository.
         """
         return Daemon(self.repo_path)
+    
+    # Tag system methods
+    def tag(self, tag_name: str, version_hash: Optional[str] = None, description: Optional[str] = None):
+        """Create a tag pointing to a specific version."""
+        if not version_hash:
+            # Tag the latest version if no hash provided
+            # Get all files with history to find the most recent change
+            import sqlite3
+            conn = sqlite3.connect(self.storage.db_path)
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT version_hash FROM versions
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """)
+            result = cursor.fetchone()
+            conn.close()
+            
+            if not result:
+                raise ValueError("No versions found to tag")
+            version_hash = result[0]
+        else:
+            # Resolve short hash if needed
+            if len(version_hash) < 64:
+                full_hash = self._resolve_short_hash(version_hash)
+                if not full_hash:
+                    raise ValueError(f"Version '{version_hash}' not found.")
+                version_hash = full_hash
+        
+        if not self.storage.create_tag(tag_name, version_hash, description):
+            raise ValueError(f"Tag '{tag_name}' already exists")
+    
+    def list_tags(self) -> List[Dict]:
+        """List all tags in the repository."""
+        return self.storage.get_tags()
+    
+    def delete_tag(self, tag_name: str):
+        """Delete a tag."""
+        if not self.storage.delete_tag(tag_name):
+            raise ValueError(f"Tag '{tag_name}' not found")
+    
+    # Branch system methods
+    def branch(self, branch_name: Optional[str] = None, from_branch: Optional[str] = None) -> Optional[Tuple[str, List[Dict]]]:
+        """Create a new branch or list branches if no name provided."""
+        if not branch_name:
+            # List branches
+            branches = self.storage.get_branches()
+            current = self.storage.get_current_branch()
+            return current, branches
+        
+        # Create new branch
+        if not self.storage.create_branch(branch_name, from_branch):
+            raise ValueError(f"Branch '{branch_name}' already exists or parent branch not found")
+        return None
+    
+    def switch_branch(self, branch_name: str):
+        """Switch to a different branch."""
+        if not self.storage.switch_branch(branch_name):
+            raise ValueError(f"Branch '{branch_name}' not found")
+    
+    def delete_branch(self, branch_name: str):
+        """Delete a branch."""
+        if branch_name == self.storage.get_current_branch():
+            raise ValueError("Cannot delete the current branch")
+        
+        if not self.storage.delete_branch(branch_name):
+            raise ValueError(f"Cannot delete branch '{branch_name}'")
+    
+    def get_current_branch(self) -> str:
+        """Get the current branch name."""
+        return self.storage.get_current_branch()
+    
+    # Search methods
+    def search(self, query: str, file_path: Optional[str] = None) -> List[Dict]:
+        """Search for content in the repository."""
+        return self.storage.search_content(query, file_path)
+    
+    def advanced_search(self, filter: SearchFilter) -> List[Dict]:
+        """Perform advanced search with filters."""
+        searcher = Searcher(self.storage)
+        return searcher.search(filter)
+    
+    def search_changes(self, added: Optional[str] = None, removed: Optional[str] = None) -> List[Dict]:
+        """Search for versions where text was added or removed."""
+        searcher = Searcher(self.storage)
+        return searcher.search_by_content_change(added, removed)
+    
+    def reindex_search(self, progress_callback=None) -> Tuple[int, int]:
+        """Reindex all content for search. Returns (indexed, total)."""
+        searcher = Searcher(self.storage)
+        return searcher.reindex_all(progress_callback)
+    
+    def get_search_stats(self) -> Dict:
+        """Get statistics about the search index."""
+        searcher = Searcher(self.storage)
+        return searcher.get_search_stats()
 
     def _resolve_short_hash(self, short_hash: str) -> Optional[str]:
         """

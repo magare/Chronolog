@@ -207,3 +207,148 @@ class ChronologBridge:
         if not status.is_repository:
             return "No repository"
         return "Running" if status.daemon_running else "Stopped"
+    
+    # Tag system methods
+    def create_tag(self, tag_name: str, version_hash: Optional[str] = None, description: Optional[str] = None) -> tuple[bool, str]:
+        """Create a new tag.
+        
+        Returns:
+            tuple: (success, message)
+        """
+        if self.repo is None:
+            return False, "No repository available"
+        
+        try:
+            self.repo.tag(tag_name, version_hash, description)
+            return True, f"Tag '{tag_name}' created successfully"
+        except Exception as e:
+            return False, str(e)
+    
+    def get_tags(self) -> List[dict]:
+        """Get all tags in the repository."""
+        if self.repo is None:
+            return []
+        
+        try:
+            return self.repo.list_tags()
+        except Exception:
+            return []
+    
+    def delete_tag(self, tag_name: str) -> tuple[bool, str]:
+        """Delete a tag.
+        
+        Returns:
+            tuple: (success, message)
+        """
+        if self.repo is None:
+            return False, "No repository available"
+        
+        try:
+            self.repo.delete_tag(tag_name)
+            return True, f"Tag '{tag_name}' deleted successfully"
+        except Exception as e:
+            return False, str(e)
+    
+    # Branch system methods
+    def get_branches(self) -> tuple[str, List[dict]]:
+        """Get current branch and list of all branches."""
+        if self.repo is None:
+            return "main", []
+        
+        try:
+            return self.repo.branch()
+        except Exception:
+            return "main", []
+    
+    def create_branch(self, branch_name: str, from_branch: Optional[str] = None) -> tuple[bool, str]:
+        """Create a new branch.
+        
+        Returns:
+            tuple: (success, message)
+        """
+        if self.repo is None:
+            return False, "No repository available"
+        
+        try:
+            self.repo.branch(branch_name, from_branch)
+            return True, f"Branch '{branch_name}' created successfully"
+        except Exception as e:
+            return False, str(e)
+    
+    def switch_branch(self, branch_name: str) -> tuple[bool, str]:
+        """Switch to a different branch.
+        
+        Returns:
+            tuple: (success, message)
+        """
+        if self.repo is None:
+            return False, "No repository available"
+        
+        try:
+            self.repo.switch_branch(branch_name)
+            return True, f"Switched to branch '{branch_name}'"
+        except Exception as e:
+            return False, str(e)
+    
+    def delete_branch(self, branch_name: str) -> tuple[bool, str]:
+        """Delete a branch.
+        
+        Returns:
+            tuple: (success, message)
+        """
+        if self.repo is None:
+            return False, "No repository available"
+        
+        try:
+            self.repo.delete_branch(branch_name)
+            return True, f"Branch '{branch_name}' deleted successfully"
+        except Exception as e:
+            return False, str(e)
+    
+    def get_current_branch(self) -> str:
+        """Get the current branch name."""
+        if self.repo is None:
+            return "main"
+        
+        try:
+            return self.repo.get_current_branch()
+        except Exception:
+            return "main"
+    
+    # Search methods
+    def search_content(self, query: str, file_path: Optional[str] = None) -> List[dict]:
+        """Search for content in the repository."""
+        if self.repo is None:
+            return []
+        
+        try:
+            return self.repo.search(query, file_path)
+        except Exception:
+            return []
+    
+    def advanced_search(self, query: str, regex: bool = False, case_sensitive: bool = False, 
+                       whole_words: bool = False, file_types: Optional[List[str]] = None,
+                       recent_days: Optional[int] = None) -> List[dict]:
+        """Perform advanced search with filters."""
+        if self.repo is None:
+            return []
+        
+        try:
+            from chronolog.search.searcher import SearchFilter
+            
+            filter = SearchFilter()
+            filter.query = query
+            filter.regex = regex
+            filter.case_sensitive = case_sensitive
+            filter.whole_words = whole_words
+            
+            if file_types:
+                for ext in file_types:
+                    filter.add_file_type(ext)
+            
+            if recent_days:
+                filter.set_recent(recent_days)
+            
+            return self.repo.advanced_search(filter)
+        except Exception:
+            return []

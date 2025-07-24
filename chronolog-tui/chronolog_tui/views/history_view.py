@@ -5,6 +5,7 @@ from textual.containers import Vertical, Horizontal
 from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.binding import Binding
+from textual.events import Key
 
 from ..api_bridge import ChronologBridge
 
@@ -82,12 +83,23 @@ class FileDetailScreen(Screen):
 class HistoryView(Static):
     """History view showing files and their versions."""
     
+    BINDINGS = [
+        Binding("up", "navigate_up", "Navigate up", show=False),
+        Binding("down", "navigate_down", "Navigate down", show=False),
+        Binding("left", "switch_to_files", "Files table", show=False),
+        Binding("right", "switch_to_versions", "Versions table", show=False),
+        Binding("tab", "switch_focus", "Switch focus", show=False),
+        Binding("shift+tab", "switch_focus_reverse", "Switch focus reverse", show=False),
+        Binding("enter", "select_row", "Select", show=False),
+    ]
+    
     def __init__(self, bridge: ChronologBridge):
         super().__init__()
         self.bridge = bridge
         self.files_table = DataTable(id="files-table")
         self.versions_table = DataTable(id="versions-table")
         self.current_file = None
+        self.active_table = "files"  # Track which table has focus
     
     def compose(self) -> ComposeResult:
         """Create the history view layout."""
@@ -106,7 +118,7 @@ class HistoryView(Static):
                 ),
                 classes="history-container"
             ),
-            Label("Select a file to view its versions. Press Enter on a version to view details.", 
+            Label("Use ↑/↓ to navigate, ←/→ or Tab to switch tables, Enter to select. Press F1 for help.", 
                   id="history-instructions"),
             classes="history-content"
         )
@@ -115,6 +127,7 @@ class HistoryView(Static):
         """Set up the history view when mounted."""
         self._setup_tables()
         self._load_files()
+        self._update_focus_styling()
     
     def _setup_tables(self):
         """Set up the data tables."""
@@ -211,3 +224,87 @@ class HistoryView(Static):
         
         except Exception as e:
             self.app.notify(f"Error opening version details: {e}", severity="error")
+    
+    def action_navigate_up(self):
+        """Navigate up in the active table."""
+        table = self._get_active_table()
+        if table.row_count > 0:
+            current_cursor = table.cursor_row
+            if current_cursor > 0:
+                table.cursor_row = current_cursor - 1
+    
+    def action_navigate_down(self):
+        """Navigate down in the active table."""
+        table = self._get_active_table()
+        if table.row_count > 0:
+            current_cursor = table.cursor_row
+            if current_cursor < table.row_count - 1:
+                table.cursor_row = current_cursor + 1
+    
+    def action_switch_to_files(self):
+        """Switch focus to the files table."""
+        if self.active_table != "files":
+            self.active_table = "files"
+            self._update_focus_styling()
+    
+    def action_switch_to_versions(self):
+        """Switch focus to the versions table."""
+        if self.active_table != "versions":
+            self.active_table = "versions"
+            self._update_focus_styling()
+    
+    def action_switch_focus(self):
+        """Switch focus between tables."""
+        if self.active_table == "files":
+            self.active_table = "versions"
+        else:
+            self.active_table = "files"
+        self._update_focus_styling()
+    
+    def action_switch_focus_reverse(self):
+        """Switch focus between tables in reverse direction."""
+        # Same as switch_focus for two tables
+        self.action_switch_focus()
+    
+    def action_select_row(self):
+        """Select the current row in the active table."""
+        table = self._get_active_table()
+        if table.row_count > 0:
+            # Simulate row selection event
+            if self.active_table == "files":
+                # Create a mock event-like object for file selection
+                class MockEvent:
+                    def __init__(self, row_key):
+                        self.row_key = row_key
+                        self.data_table = table
+                
+                mock_event = MockEvent(table.cursor_row)
+                self._on_file_selected(mock_event)
+            else:
+                # Create a mock event for version selection
+                class MockEvent:
+                    def __init__(self, row_key):
+                        self.row_key = row_key
+                        self.data_table = table
+                
+                mock_event = MockEvent(table.cursor_row)
+                self._on_version_selected(mock_event)
+    
+    def _get_active_table(self) -> DataTable:
+        """Get the currently active table."""
+        if self.active_table == "files":
+            return self.files_table
+        else:
+            return self.versions_table
+    
+    def _update_focus_styling(self):
+        """Update the visual styling to show which table has focus."""
+        # Remove focus classes from both tables
+        self.files_table.remove_class("table-focused")
+        self.versions_table.remove_class("table-focused")
+        
+        # Add focus class to active table
+        if self.active_table == "files":
+            self.files_table.add_class("table-focused")
+        else:
+            self.versions_table.add_class("table-focused")

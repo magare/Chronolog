@@ -12,9 +12,11 @@ class Storage:
         self.base_path = base_path
         self.objects_dir = base_path / "objects"
         self.db_path = base_path / "history.db"
+        self.current_branch = "main"  # Default branch
         
         self.objects_dir.mkdir(parents=True, exist_ok=True)
         self._init_db()
+        self._load_current_branch()
     
     def _init_db(self):
         conn = sqlite3.connect(self.db_path)
@@ -42,6 +44,83 @@ class Storage:
             CREATE INDEX IF NOT EXISTS idx_timestamp 
             ON versions(timestamp)
         """)
+        
+        # New tables for enhanced features
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tags (
+                tag_name TEXT PRIMARY KEY,
+                version_hash TEXT NOT NULL,
+                timestamp DATETIME NOT NULL,
+                description TEXT
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS branches (
+                branch_name TEXT PRIMARY KEY,
+                head_hash TEXT NOT NULL,
+                created_at DATETIME NOT NULL,
+                parent_branch TEXT
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS search_index (
+                version_hash TEXT,
+                file_path TEXT,
+                content_text TEXT,
+                PRIMARY KEY (version_hash, file_path)
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                metric_type TEXT NOT NULL,
+                timestamp DATETIME NOT NULL,
+                value REAL,
+                metadata TEXT
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS comments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                version_hash TEXT NOT NULL,
+                timestamp DATETIME NOT NULL,
+                author TEXT,
+                comment TEXT NOT NULL
+            )
+        """)
+        
+        # Add indexes for performance
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_search_content 
+            ON search_index(content_text)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_tags_hash 
+            ON tags(version_hash)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_branches_head 
+            ON branches(head_hash)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_comments_hash 
+            ON comments(version_hash)
+        """)
+        
+        # Initialize default branch if this is a new repository
+        cursor.execute("SELECT COUNT(*) FROM branches")
+        if cursor.fetchone()[0] == 0:
+            cursor.execute("""
+                INSERT OR IGNORE INTO branches (branch_name, head_hash, created_at, parent_branch)
+                VALUES ('main', '', ?, NULL)
+            """, (datetime.now(),))
         
         conn.commit()
         conn.close()
@@ -84,6 +163,15 @@ class Storage:
         
         conn.commit()
         conn.close()
+        
+        # Index content for search
+        self.index_content(content_hash, file_path, content)
+        
+        # Update current branch head if we have branches
+        self._update_current_branch_head(content_hash)
+        
+        # Record storage metric
+        self.record_metric("storage_bytes", len(content), {"file_path": file_path})
         
         return content_hash
     
@@ -156,3 +244,323 @@ class Storage:
                 "size": result[4]
             }
         return None
+    
+    # Tag system methods
+    def create_tag(self, tag_name: str, version_hash: str, description: Optional[str] = None) -> bool:
+        """Create a new tag pointing to a specific version."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                INSERT INTO tags (tag_name, version_hash, timestamp, description)
+                VALUES (?, ?, ?, ?)
+            """, (tag_name, version_hash, datetime.now(), description))
+            conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+        finally:
+            conn.close()
+    
+    def get_tags(self) -> List[dict]:
+        """Get all tags in the repository."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT tag_name, version_hash, timestamp, description
+            FROM tags
+            ORDER BY timestamp DESC
+        """)
+        
+        tags = []
+        for row in cursor.fetchall():
+            tags.append({
+                "name": row[0],
+                "hash": row[1],
+                "timestamp": row[2],
+                "description": row[3]
+            })
+        
+        conn.close()
+        return tags
+    
+    def get_tag(self, tag_name: str) -> Optional[dict]:
+        """Get a specific tag by name."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT version_hash, timestamp, description
+            FROM tags
+            WHERE tag_name = ?
+        """, (tag_name,))
+        
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result:
+            return {
+                "name": tag_name,
+                "hash": result[0],
+                "timestamp": result[1],
+                "description": result[2]
+            }
+        return None
+    
+    def delete_tag(self, tag_name: str) -> bool:
+        """Delete a tag."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM tags WHERE tag_name = ?", (tag_name,))
+        affected = cursor.rowcount
+        conn.commit()
+        conn.close()
+        
+        return affected > 0
+    
+    # Branch system methods
+    def create_branch(self, branch_name: str, from_branch: Optional[str] = None) -> bool:
+        """Create a new branch."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        try:
+            # Get the head of the parent branch
+            if from_branch:
+                cursor.execute("SELECT head_hash FROM branches WHERE branch_name = ?", (from_branch,))
+                result = cursor.fetchone()
+                if not result:
+                    conn.close()
+                    return False
+                head_hash = result[0]
+            else:
+                # Branch from current main
+                cursor.execute("SELECT head_hash FROM branches WHERE branch_name = 'main'")
+                result = cursor.fetchone()
+                head_hash = result[0] if result else ''
+                from_branch = 'main'
+            
+            cursor.execute("""
+                INSERT INTO branches (branch_name, head_hash, created_at, parent_branch)
+                VALUES (?, ?, ?, ?)
+            """, (branch_name, head_hash, datetime.now(), from_branch))
+            
+            conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+        finally:
+            conn.close()
+    
+    def get_branches(self) -> List[dict]:
+        """Get all branches in the repository."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT branch_name, head_hash, created_at, parent_branch
+            FROM branches
+            ORDER BY created_at DESC
+        """)
+        
+        branches = []
+        for row in cursor.fetchall():
+            branches.append({
+                "name": row[0],
+                "head": row[1],
+                "created_at": row[2],
+                "parent": row[3]
+            })
+        
+        conn.close()
+        return branches
+    
+    def get_branch(self, branch_name: str) -> Optional[dict]:
+        """Get a specific branch by name."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT head_hash, created_at, parent_branch
+            FROM branches
+            WHERE branch_name = ?
+        """, (branch_name,))
+        
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result:
+            return {
+                "name": branch_name,
+                "head": result[0],
+                "created_at": result[1],
+                "parent": result[2]
+            }
+        return None
+    
+    def update_branch_head(self, branch_name: str, new_head: str) -> bool:
+        """Update the head of a branch."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE branches
+            SET head_hash = ?
+            WHERE branch_name = ?
+        """, (new_head, branch_name))
+        
+        affected = cursor.rowcount
+        conn.commit()
+        conn.close()
+        
+        return affected > 0
+    
+    def delete_branch(self, branch_name: str) -> bool:
+        """Delete a branch (cannot delete 'main')."""
+        if branch_name == 'main':
+            return False
+            
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM branches WHERE branch_name = ?", (branch_name,))
+        affected = cursor.rowcount
+        conn.commit()
+        conn.close()
+        
+        return affected > 0
+    
+    # Search index methods
+    def index_content(self, version_hash: str, file_path: str, content: bytes):
+        """Index content for search (only for text files)."""
+        try:
+            # Try to decode as text
+            text_content = content.decode('utf-8')
+            
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT OR REPLACE INTO search_index (version_hash, file_path, content_text)
+                VALUES (?, ?, ?)
+            """, (version_hash, file_path, text_content))
+            
+            conn.commit()
+            conn.close()
+        except UnicodeDecodeError:
+            # Skip binary files
+            pass
+    
+    def search_content(self, query: str, file_path: Optional[str] = None) -> List[dict]:
+        """Search for content in the repository."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        if file_path:
+            cursor.execute("""
+                SELECT DISTINCT si.version_hash, si.file_path, v.timestamp
+                FROM search_index si
+                JOIN versions v ON si.version_hash = v.version_hash AND si.file_path = v.file_path
+                WHERE si.content_text LIKE ? AND si.file_path = ?
+                ORDER BY v.timestamp DESC
+            """, (f'%{query}%', file_path))
+        else:
+            cursor.execute("""
+                SELECT DISTINCT si.version_hash, si.file_path, v.timestamp
+                FROM search_index si
+                JOIN versions v ON si.version_hash = v.version_hash AND si.file_path = v.file_path
+                WHERE si.content_text LIKE ?
+                ORDER BY v.timestamp DESC
+            """, (f'%{query}%',))
+        
+        results = []
+        for row in cursor.fetchall():
+            results.append({
+                "hash": row[0],
+                "file_path": row[1],
+                "timestamp": row[2]
+            })
+        
+        conn.close()
+        return results
+    
+    # Metrics methods
+    def record_metric(self, metric_type: str, value: float, metadata: Optional[dict] = None):
+        """Record a metric for analytics."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        metadata_json = json.dumps(metadata) if metadata else None
+        
+        cursor.execute("""
+            INSERT INTO metrics (metric_type, timestamp, value, metadata)
+            VALUES (?, ?, ?, ?)
+        """, (metric_type, datetime.now(), value, metadata_json))
+        
+        conn.commit()
+        conn.close()
+    
+    def get_metrics(self, metric_type: str, since: Optional[datetime] = None) -> List[dict]:
+        """Get metrics of a specific type."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        if since:
+            cursor.execute("""
+                SELECT timestamp, value, metadata
+                FROM metrics
+                WHERE metric_type = ? AND timestamp >= ?
+                ORDER BY timestamp DESC
+            """, (metric_type, since))
+        else:
+            cursor.execute("""
+                SELECT timestamp, value, metadata
+                FROM metrics
+                WHERE metric_type = ?
+                ORDER BY timestamp DESC
+            """, (metric_type,))
+        
+        metrics = []
+        for row in cursor.fetchall():
+            metrics.append({
+                "timestamp": row[0],
+                "value": row[1],
+                "metadata": json.loads(row[2]) if row[2] else None
+            })
+        
+        conn.close()
+        return metrics
+    
+    # Helper methods for branch management
+    def _load_current_branch(self):
+        """Load the current branch from a file or default to main."""
+        branch_file = self.base_path / "current_branch"
+        if branch_file.exists():
+            self.current_branch = branch_file.read_text().strip()
+        else:
+            self.current_branch = "main"
+    
+    def _save_current_branch(self):
+        """Save the current branch to a file."""
+        branch_file = self.base_path / "current_branch"
+        branch_file.write_text(self.current_branch)
+    
+    def switch_branch(self, branch_name: str) -> bool:
+        """Switch to a different branch."""
+        # Check if branch exists
+        if self.get_branch(branch_name):
+            self.current_branch = branch_name
+            self._save_current_branch()
+            return True
+        return False
+    
+    def get_current_branch(self) -> str:
+        """Get the current branch name."""
+        return self.current_branch
+    
+    def _update_current_branch_head(self, version_hash: str):
+        """Update the head of the current branch."""
+        self.update_branch_head(self.current_branch, version_hash)

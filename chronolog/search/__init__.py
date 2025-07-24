@@ -1,0 +1,1 @@
+"""Search functionality for ChronoLog."""
