@@ -4,7 +4,7 @@ import zlib
 import lzma
 import bz2
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 
@@ -334,3 +334,7 @@ class StorageOptimizer:
             
         finally:
             conn.close()
+    
+    def analyze_content_deduplication(self) -> Dict[str, Any]:
+        """Alias for deduplicate_content method"""
+        return self.deduplicate_content()

@@ -9,6 +9,7 @@ from enum import Enum
 from textual.app import ComposeResult
 from textual.widgets import Tree, Input, Label, Button, Static
 from textual.widget import Widget
+from textual.screen import Screen
 from textual.reactive import reactive
 from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual.message import Message

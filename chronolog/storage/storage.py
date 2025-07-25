@@ -309,6 +309,29 @@ class Storage:
     def _calculate_hash(self, content: bytes) -> str:
         return hashlib.sha256(content).hexdigest()
     
+    def store_content(self, content: bytes) -> str:
+        """Store content and return its hash"""
+        content_hash = self._calculate_hash(content)
+        
+        # Store the content in objects directory
+        hash_dir = self.objects_dir / content_hash[:2]
+        hash_dir.mkdir(exist_ok=True)
+        
+        hash_file = hash_dir / content_hash[2:]
+        if not hash_file.exists():
+            hash_file.write_bytes(content)
+        
+        return content_hash
+    
+    def get_content(self, content_hash: str) -> Optional[bytes]:
+        """Get content by hash"""
+        hash_dir = self.objects_dir / content_hash[:2]
+        hash_file = hash_dir / content_hash[2:]
+        
+        if hash_file.exists():
+            return hash_file.read_bytes()
+        return None
+    
     def store_version(self, file_path: str, content: bytes, 
                      parent_hash: Optional[str] = None, 
                      annotation: Optional[str] = None) -> str:
@@ -745,3 +768,6 @@ class Storage:
     def _update_current_branch_head(self, version_hash: str):
         """Update the head of the current branch."""
         self.update_branch_head(self.current_branch, version_hash)
+
+# Alias for backward compatibility
+ChronoLogStorage = Storage

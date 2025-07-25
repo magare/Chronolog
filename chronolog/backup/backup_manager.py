@@ -238,7 +238,7 @@ class BackupManager:
             return False, "Backup file not found"
         
         # Check if info file exists
-        info_file = backup_file.with_suffix('') + ".info"
+        info_file = backup_file.with_suffix('').with_suffix('.info')
         if not info_file.exists():
             return False, "Backup info file not found"
         

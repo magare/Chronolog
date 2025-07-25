@@ -297,6 +297,34 @@ class ChronologRepo:
         searcher = Searcher(self.storage)
         return searcher.get_search_stats()
 
+    def status(self) -> Dict:
+        """Get repository status including daemon status and recent activity"""
+        daemon = self.get_daemon()
+        daemon_status = daemon.status()
+        
+        # Get recent files with versions
+        import glob
+        files_with_versions = {}
+        
+        # Scan for tracked files
+        for file_path in glob.glob("**/*", recursive=True):
+            if os.path.isfile(file_path) and not file_path.startswith('.chronolog'):
+                try:
+                    history = self.log(file_path)
+                    if history:
+                        files_with_versions[file_path] = len(history)
+                except:
+                    # Skip files that can't be processed
+                    pass
+        
+        return {
+            'daemon_running': daemon_status.get('running', False) if daemon_status else False,
+            'daemon_pid': daemon_status.get('pid') if daemon_status else None,
+            'tracked_files': len(files_with_versions),
+            'files_with_versions': files_with_versions,
+            'current_branch': self.get_current_branch()
+        }
+
     def _resolve_short_hash(self, short_hash: str) -> Optional[str]:
         """
         Resolves a short hash to a full hash.

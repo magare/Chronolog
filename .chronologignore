@@ -1,0 +1,83 @@
+# ChronoLog ignore patterns
+# This file uses gitignore-style patterns
+
+# ChronoLog and version control
+.chronolog/
+.git/
+
+# Python
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+*.egg-info/
+*.egg
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.eslintcache
+
+# IDE and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Build outputs
+dist/
+build/
+out/
+target/
+*.o
+*.so
+*.dll
+*.exe
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# Large binary files (add specific extensions as needed)
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.dmg
+*.iso
+*.jar
+*.war
+
+# Custom patterns (add your own below)

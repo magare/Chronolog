@@ -254,3 +254,39 @@ class RepositoryVisualizer:
             lines.append(line)
         
         return "\n".join(lines)
+
+# Alias for backward compatibility  
+class Visualization:
+    """Alias for RepositoryVisualizer to maintain backward compatibility"""
+    
+    @staticmethod
+    def create_bar_chart(*args, **kwargs):
+        return RepositoryVisualizer.create_bar_chart(*args, **kwargs)
+    
+    @staticmethod
+    def create_line_chart(*args, **kwargs):
+        return RepositoryVisualizer.create_line_chart(*args, **kwargs)
+    
+    @staticmethod
+    def create_activity_heatmap(*args, **kwargs):
+        return RepositoryVisualizer.create_heatmap(*args, **kwargs)
+    
+    @staticmethod
+    def create_sparkline(*args, **kwargs):
+        return RepositoryVisualizer.create_sparkline(*args, **kwargs)
+    
+    @staticmethod
+    def create_tree_map(*args, **kwargs):
+        return RepositoryVisualizer.create_tree_map(*args, **kwargs)
+    
+    @staticmethod
+    def create_progress_bar(*args, **kwargs):
+        return RepositoryVisualizer.create_progress_bar(*args, **kwargs)
+    
+    @staticmethod
+    def format_file_size(*args, **kwargs):
+        return RepositoryVisualizer.format_file_size(*args, **kwargs)
+    
+    @staticmethod
+    def create_activity_calendar(*args, **kwargs):
+        return RepositoryVisualizer.create_activity_calendar(*args, **kwargs)

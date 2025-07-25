@@ -335,3 +335,7 @@ class ChronologScriptingAPI:
             
         except:
             return False
+
+
+# Alias for backward compatibility
+ChronoLogAPI = ChronologScriptingAPI
