@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Error - ChronoLog{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <div style="display: flex; align-items: center;">
+            <div style="font-size: 2rem; margin-right: 1rem; color: #e74c3c;">⚠</div>
+            <div>An Error Occurred</div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-error">
+            {{ error }}
+        </div>
+        
+        <div style="margin-top: 2rem;">
+            <h4>What you can do:</h4>
+            <ul style="margin-top: 1rem; padding-left: 2rem;">
+                <li>Check that the ChronoLog repository is properly initialized</li>
+                <li>Verify that you have the necessary permissions</li>
+                <li>Try refreshing the page</li>
+                <li>Go back to the <a href="/">dashboard</a></li>
+            </ul>
+        </div>
+        
+        <div style="margin-top: 2rem;">
+            <a href="/" class="btn">Return to Dashboard</a>
+            <a href="javascript:history.back()" class="btn btn-secondary">Go Back</a>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Technical Information</div>
+    <div class="card-body">
+        <div class="code-block">
+Error: {{ error }}
+Time: {{ moment().format('YYYY-MM-DD HH:mm:ss') }}
+User Agent: <script>document.write(navigator.userAgent);</script>
+        </div>
+    </div>
+</div>
+{% endblock %}

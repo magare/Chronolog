@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - ChronoLog{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_versions }}</div>
+        <div class="stat-label">Total Versions</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_files }}</div>
+        <div class="stat-label">Total Files</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_size_mb }}</div>
+        <div class="stat-label">Repository Size (MB)</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.unique_authors|length }}</div>
+        <div class="stat-label">Contributors</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        Repository Overview
+    </div>
+    <div class="card-body">
+        <p><strong>First Version:</strong> <span class="timestamp">{{ stats.first_version_date or 'N/A' }}</span></p>
+        <p><strong>Last Version:</strong> <span class="timestamp">{{ stats.last_version_date or 'N/A' }}</span></p>
+        <p><strong>Most Active Author:</strong> {{ stats.most_active_author or 'N/A' }}</p>
+        
+        {% if stats.language_stats %}
+        <h4 style="margin-top: 1.5rem; margin-bottom: 1rem;">Language Distribution</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+            {% for lang, count in stats.language_stats.items() %}
+            <div style="text-align: center; padding: 0.5rem; background-color: #f8f9fa; border-radius: 4px;">
+                <strong>{{ lang }}</strong><br>
+                <small>{{ count }} files</small>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        Recent Versions
+        <a href="/history" class="btn btn-secondary" style="float: right; margin-top: -0.25rem;">View All</a>
+    </div>
+    <div class="card-body">
+        {% if recent_versions %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Version ID</th>
+                    <th>Message</th>
+                    <th>Author</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for version in recent_versions %}
+                <tr>
+                    <td><code>{{ version.id[:8] }}</code></td>
+                    <td>{{ version.message }}</td>
+                    <td>{{ version.author or 'Unknown' }}</td>
+                    <td class="timestamp">{{ version.timestamp }}</td>
+                    <td>
+                        <a href="/version/{{ version.id }}" class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No versions found. Create your first version to get started!</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        Quick Actions
+    </div>
+    <div class="card-body">
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+            <a href="/history" class="btn">Browse History</a>
+            <a href="/analytics" class="btn">View Analytics</a>
+            <a href="#" class="btn btn-secondary" onclick="showCreateVersionDialog()">Create Version</a>
+        </div>
+    </div>
+</div>
+
+<script>
+function showCreateVersionDialog() {
+    alert('Create version functionality would be implemented here.\nFor now, use the CLI tool to create versions.');
+}
+</script>
+{% endblock %}

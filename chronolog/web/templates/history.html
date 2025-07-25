@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}History - ChronoLog{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        Version History
+        <div style="float: right;">
+            <input type="search" placeholder="Search versions..." style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+        </div>
+    </div>
+    <div class="card-body">
+        {% if versions %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Version ID</th>
+                    <th>Message</th>
+                    <th>Author</th>
+                    <th>Date</th>
+                    <th>Files</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for version in versions %}
+                <tr>
+                    <td>
+                        <code>{{ version.id[:8] }}</code>
+                        <small style="display: block; color: #666;">{{ version.id[8:16] }}</small>
+                    </td>
+                    <td>
+                        <strong>{{ version.message }}</strong>
+                        {% if version.description %}
+                        <br><small style="color: #666;">{{ version.description[:100] }}{% if version.description|length > 100 %}...{% endif %}</small>
+                        {% endif %}
+                    </td>
+                    <td>{{ version.author or 'Unknown' }}</td>
+                    <td class="timestamp">{{ version.timestamp }}</td>
+                    <td>
+                        <span style="background-color: #e3f2fd; color: #1976d2; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.8rem;">
+                            {{ version.file_count or 0 }} files
+                        </span>
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <a href="/version/{{ version.id }}" class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">View</a>
+                            <a href="#" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="showDiffDialog('{{ version.id }}')">Diff</a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Pagination -->
+        <div class="pagination">
+            {% if page > 1 %}
+            <a href="?page={{ page - 1 }}&limit={{ limit }}">&laquo; Previous</a>
+            {% endif %}
+            
+            {% set start_page = [1, page - 2]|max %}
+            {% set end_page = [total // limit + 1, page + 2]|min %}
+            
+            {% for p in range(start_page, end_page + 1) %}
+                {% if p == page %}
+                <span class="current">{{ p }}</span>
+                {% else %}
+                <a href="?page={{ p }}&limit={{ limit }}">{{ p }}</a>
+                {% endif %}
+            {% endfor %}
+            
+            {% if page < (total // limit) %}
+            <a href="?page={{ page + 1 }}&limit={{ limit }}">Next &raquo;</a>
+            {% endif %}
+        </div>
+
+        <div style="margin-top: 1rem; color: #666; font-size: 0.9rem;">
+            Showing {{ ((page - 1) * limit) + 1 }} to {{ [page * limit, total]|min }} of {{ total }} versions
+        </div>
+        {% else %}
+        <p>No versions found.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Branch/Tag visualization -->
+<div class="card">
+    <div class="card-header">
+        Repository Timeline
+    </div>
+    <div class="card-body">
+        <div id="timeline" style="height: 200px; background-color: #f8f9fa; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #666;">
+            Timeline visualization would be implemented here with a JavaScript library like D3.js
+        </div>
+    </div>
+</div>
+
+<script>
+function showDiffDialog(versionId) {
+    // In a real implementation, this would show a diff comparison dialog
+    const otherVersion = prompt('Enter version ID to compare with (or leave empty for previous version):');
+    if (otherVersion !== null) {
+        if (otherVersion.trim()) {
+            window.location.href = `/diff/${versionId}/${otherVersion.trim()}`;
+        } else {
+            window.location.href = `/diff/${versionId}`;
+        }
+    }
+}
+
+// Simple search functionality
+document.querySelector('input[type="search"]').addEventListener('input', function(e) {
+    const searchTerm = e.target.value.toLowerCase();
+    const rows = document.querySelectorAll('tbody tr');
+    
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
+});
+</script>
+{% endblock %}

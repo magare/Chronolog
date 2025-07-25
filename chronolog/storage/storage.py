@@ -114,6 +114,187 @@ class Storage:
             ON comments(version_hash)
         """)
         
+        # Phase 4 & 5 Tables
+        
+        # Performance analytics
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS analytics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                metric_name TEXT NOT NULL,
+                value REAL NOT NULL,
+                timestamp DATETIME NOT NULL,
+                context TEXT,
+                file_path TEXT,
+                user_id TEXT
+            )
+        """)
+        
+        # Storage optimization metadata
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS storage_metadata (
+                hash TEXT PRIMARY KEY,
+                size INTEGER NOT NULL,
+                compression_ratio REAL,
+                access_count INTEGER DEFAULT 0,
+                last_accessed DATETIME,
+                is_orphaned BOOLEAN DEFAULT FALSE
+            )
+        """)
+        
+        # Hooks configuration
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS hooks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                hook_name TEXT NOT NULL,
+                script_path TEXT,
+                script_content TEXT,
+                enabled BOOLEAN DEFAULT TRUE,
+                created_at DATETIME NOT NULL,
+                UNIQUE(event_type, hook_name)
+            )
+        """)
+        
+        # Developer activity tracking
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS activity_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                action_type TEXT NOT NULL,
+                resource_path TEXT,
+                timestamp DATETIME NOT NULL,
+                details TEXT
+            )
+        """)
+        
+        # User management
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT UNIQUE,
+                full_name TEXT,
+                password_hash TEXT,
+                created_at DATETIME NOT NULL,
+                last_active DATETIME,
+                is_active BOOLEAN DEFAULT TRUE
+            )
+        """)
+        
+        # Permissions system
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS permissions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                resource_type TEXT NOT NULL,
+                resource_id TEXT NOT NULL,
+                permission_level TEXT NOT NULL,
+                granted_at DATETIME NOT NULL,
+                granted_by TEXT,
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE(user_id, resource_type, resource_id)
+            )
+        """)
+        
+        # File locks for collaboration
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS file_locks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_path TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                lock_type TEXT NOT NULL,
+                acquired_at DATETIME NOT NULL,
+                expires_at DATETIME,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+        
+        # Merge conflicts
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS merge_conflicts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_path TEXT NOT NULL,
+                base_hash TEXT NOT NULL,
+                our_hash TEXT NOT NULL,
+                their_hash TEXT NOT NULL,
+                conflict_type TEXT NOT NULL,
+                created_at DATETIME NOT NULL,
+                resolved_at DATETIME,
+                resolved_by TEXT,
+                resolution_strategy TEXT
+            )
+        """)
+        
+        # API sessions and tokens
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS api_sessions (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                token_hash TEXT NOT NULL,
+                created_at DATETIME NOT NULL,
+                expires_at DATETIME NOT NULL,
+                last_used DATETIME,
+                client_info TEXT,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+        
+        # Code quality metrics
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS code_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_path TEXT NOT NULL,
+                version_hash TEXT NOT NULL,
+                language TEXT,
+                lines_of_code INTEGER,
+                complexity_score REAL,
+                maintainability_index REAL,
+                cyclomatic_complexity INTEGER,
+                analyzed_at DATETIME NOT NULL
+            )
+        """)
+        
+        # Add indexes for new tables
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_analytics_timestamp 
+            ON analytics(timestamp)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_analytics_metric 
+            ON analytics(metric_name)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_storage_metadata_access 
+            ON storage_metadata(last_accessed)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_activity_user 
+            ON activity_log(user_id, timestamp)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_permissions_user 
+            ON permissions(user_id)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_file_locks_path 
+            ON file_locks(file_path)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_api_sessions_token 
+            ON api_sessions(token_hash)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_code_metrics_file 
+            ON code_metrics(file_path, version_hash)
+        """)
+        
         # Initialize default branch if this is a new repository
         cursor.execute("SELECT COUNT(*) FROM branches")
         if cursor.fetchone()[0] == 0:

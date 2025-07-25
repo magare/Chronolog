@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+
+{% block title %}Version {{ version.id[:8] }} - ChronoLog{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        Version Details
+        <div style="float: right;">
+            <a href="/history" class="btn btn-secondary">← Back to History</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+            <div>
+                <h4>Version Information</h4>
+                <table style="margin-top: 1rem;">
+                    <tr>
+                        <td style="padding: 0.5rem; font-weight: bold; width: 120px;">ID:</td>
+                        <td style="padding: 0.5rem;"><code>{{ version.id }}</code></td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; font-weight: bold;">Message:</td>
+                        <td style="padding: 0.5rem;">{{ version.message }}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; font-weight: bold;">Author:</td>
+                        <td style="padding: 0.5rem;">{{ version.author or 'Unknown' }}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; font-weight: bold;">Date:</td>
+                        <td style="padding: 0.5rem;" class="timestamp">{{ version.timestamp }}</td>
+                    </tr>
+                    {% if version.parent_version %}
+                    <tr>
+                        <td style="padding: 0.5rem; font-weight: bold;">Parent:</td>
+                        <td style="padding: 0.5rem;">
+                            <a href="/version/{{ version.parent_version }}">
+                                <code>{{ version.parent_version[:8] }}</code>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+            
+            <div>
+                <h4>Statistics</h4>
+                <div style="margin-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #eee;">
+                        <span>Total Files:</span>
+                        <strong>{{ files|length }}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #eee;">
+                        <span>Total Size:</span>
+                        <strong class="filesize">{{ version.total_size or 0 }}</strong>
+                    </div>
+                    {% if version.changes_summary %}
+                    <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #eee;">
+                        <span>Files Added:</span>
+                        <strong style="color: #27ae60;">+{{ version.changes_summary.added or 0 }}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #eee;">
+                        <span>Files Modified:</span>
+                        <strong style="color: #f39c12;">~{{ version.changes_summary.modified or 0 }}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 0.5rem 0;">
+                        <span>Files Deleted:</span>
+                        <strong style="color: #e74c3c;">-{{ version.changes_summary.deleted or 0 }}</strong>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        {% if version.description %}
+        <div style="margin-top: 2rem;">
+            <h4>Description</h4>
+            <div class="code-block" style="margin-top: 1rem;">{{ version.description }}</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        Files in this Version
+        <div style="float: right;">
+            <input type="search" id="fileSearch" placeholder="Search files..." style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+            <select id="fileTypeFilter" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; border-radius: 4px; margin-left: 0.5rem;">
+                <option value="">All Types</option>
+            </select>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if files %}
+        <table class="table" id="filesTable">
+            <thead>
+                <tr>
+                    <th>File Path</th>
+                    <th>Size</th>
+                    <th>Type</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for file in files %}
+                <tr data-file-type="{{ file.path.split('.')[-1] if '.' in file.path else 'no-ext' }}">
+                    <td>
+                        <div style="display: flex; align-items: center;">
+                            <span style="font-family: monospace;">{{ file.path }}</span>
+                            {% if file.is_binary %}
+                            <span style="background-color: #ffeaa7; color: #d63031; padding: 0.125rem 0.25rem; border-radius: 2px; font-size: 0.7rem; margin-left: 0.5rem;">BINARY</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td class="filesize">{{ file.size or 0 }}</td>
+                    <td>
+                        {% set ext = file.path.split('.')[-1] if '.' in file.path else '' %}
+                        <span style="background-color: #74b9ff; color: white; padding: 0.125rem 0.25rem; border-radius: 2px; font-size: 0.7rem;">
+                            {{ ext.upper() if ext else 'FILE' }}
+                        </span>
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <a href="/api/versions/{{ version.id }}/files/{{ file.path }}" 
+                               class="btn" 
+                               style="padding: 0.25rem 0.5rem; font-size: 0.8rem;"
+                               onclick="viewFile(event, '{{ version.id }}', '{{ file.path }}')">View</a>
+                            <a href="/api/versions/{{ version.id }}/files/{{ file.path }}" 
+                               class="btn btn-secondary" 
+                               style="padding: 0.25rem 0.5rem; font-size: 0.8rem;"
+                               download>Download</a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No files found in this version.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- File viewer modal -->
+<div id="fileViewerModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="background: white; margin: 2rem; border-radius: 8px; height: calc(100vh - 4rem); display: flex; flex-direction: column;">
+        <div style="padding: 1rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <h3 id="fileViewerTitle">File Viewer</h3>
+            <button onclick="closeFileViewer()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+        </div>
+        <div style="flex: 1; overflow: auto; padding: 1rem;">
+            <pre id="fileViewerContent" style="margin: 0; white-space: pre-wrap; font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; font-size: 0.9rem;"></pre>
+        </div>
+    </div>
+</div>
+
+<script>
+// File search and filter functionality
+document.getElementById('fileSearch').addEventListener('input', filterFiles);
+document.getElementById('fileTypeFilter').addEventListener('change', filterFiles);
+
+// Populate file type filter
+const fileTypes = new Set();
+document.querySelectorAll('#filesTable tbody tr').forEach(row => {
+    const fileType = row.getAttribute('data-file-type');
+    if (fileType && fileType !== 'no-ext') {
+        fileTypes.add(fileType);
+    }
+});
+
+const filterSelect = document.getElementById('fileTypeFilter');
+Array.from(fileTypes).sort().forEach(type => {
+    const option = document.createElement('option');
+    option.value = type;
+    option.textContent = type.toUpperCase();
+    filterSelect.appendChild(option);
+});
+
+function filterFiles() {
+    const searchTerm = document.getElementById('fileSearch').value.toLowerCase();
+    const selectedType = document.getElementById('fileTypeFilter').value;
+    const rows = document.querySelectorAll('#filesTable tbody tr');
+    
+    rows.forEach(row => {
+        const filePath = row.cells[0].textContent.toLowerCase();
+        const fileType = row.getAttribute('data-file-type');
+        
+        const matchesSearch = filePath.includes(searchTerm);
+        const matchesType = !selectedType || fileType === selectedType;
+        
+        row.style.display = (matchesSearch && matchesType) ? '' : 'none';
+    });
+}
+
+async function viewFile(event, versionId, filePath) {
+    event.preventDefault();
+    
+    try {
+        const response = await fetch(`/api/versions/${versionId}/files/${filePath}`);
+        const data = await response.json();
+        
+        document.getElementById('fileViewerTitle').textContent = filePath;
+        
+        if (data.type === 'text') {
+            document.getElementById('fileViewerContent').textContent = data.content;
+        } else {
+            document.getElementById('fileViewerContent').textContent = 'Binary file - cannot display content';
+        }
+        
+        document.getElementById('fileViewerModal').style.display = 'block';
+    } catch (error) {
+        alert('Error loading file: ' + error.message);
+    }
+}
+
+function closeFileViewer() {
+    document.getElementById('fileViewerModal').style.display = 'none';
+}
+
+// Close modal on ESC key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeFileViewer();
+    }
+});
+</script>
+{% endblock %}

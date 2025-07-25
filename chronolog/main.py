@@ -14,6 +14,21 @@ from .cloud.sync_manager import CloudSyncManager, SyncDirection, ConflictResolut
 from .git_integration.git_exporter import GitExporter
 from .git_integration.git_importer import GitImporter
 
+# Import Phase 4 & 5 features
+from .analytics.performance_analytics import PerformanceAnalytics
+from .analytics.visualization import Visualization
+from .analytics.metrics_collector import MetricsCollector
+from .optimization.storage_optimizer import StorageOptimizer
+from .optimization.garbage_collector import GarbageCollector
+from .hooks.hook_manager import HookManager
+from .hooks.scripting_api import ChronoLogAPI
+from .users.user_manager import UserManager
+from .users.auth import AuthenticationManager
+from .users.permissions import PermissionManager
+from .merge.merge_engine import MergeEngine
+from .merge.conflict_resolver import ConflictResolver
+from .web.app import WebServer
+
 # Initialize colorama for cross-platform colored output
 init(autoreset=True)
 
@@ -1076,6 +1091,753 @@ def git_import(git_repo_path, branches, tags, preserve_timestamps):
     except Exception as e:
         click.echo(f"{Fore.RED}[ChronoLog] Error: {e}")
         sys.exit(1)
+
+
+# =====================================================================
+# Phase 4 & 5 CLI Commands
+# =====================================================================
+
+@main.group()
+def analytics():
+    """Analytics and performance metrics"""
+    pass
+
+
+@analytics.command('stats')
+@click.option('--format', 'output_format', type=click.Choice(['text', 'json']), 
+              default='text', help='Output format')
+def analytics_stats(output_format):
+    """Show repository statistics and analytics"""
+    try:
+        repo = ChronologRepo()
+        analytics = PerformanceAnalytics(repo.repo_path)
+        
+        click.echo(f"{Fore.CYAN}[ChronoLog] Collecting repository statistics...")
+        stats = analytics.collect_repository_stats()
+        
+        if output_format == 'json':
+            import json
+            stats_dict = {
+                'total_versions': stats.total_versions,
+                'total_files': stats.total_files,
+                'total_size_mb': stats.total_size_mb,
+                'unique_authors': stats.unique_authors,
+                'language_stats': stats.language_stats,
+                'first_version_date': stats.first_version_date.isoformat() if stats.first_version_date else None,
+                'last_version_date': stats.last_version_date.isoformat() if stats.last_version_date else None,
+                'most_active_author': stats.most_active_author,
+                'compression_ratio': stats.compression_ratio,
+                'growth_rate_mb_per_day': stats.growth_rate_mb_per_day
+            }
+            click.echo(json.dumps(stats_dict, indent=2))
+        else:
+            click.echo(f"\n{Fore.GREEN}Repository Statistics:")
+            click.echo(f"  Total Versions: {stats.total_versions}")
+            click.echo(f"  Total Files: {stats.total_files}")
+            click.echo(f"  Total Size: {stats.total_size_mb:.2f} MB")
+            click.echo(f"  Unique Authors: {len(stats.unique_authors)}")
+            click.echo(f"  Most Active Author: {stats.most_active_author or 'N/A'}")
+            click.echo(f"  Compression Ratio: {stats.compression_ratio:.2f}")
+            click.echo(f"  Growth Rate: {stats.growth_rate_mb_per_day:.2f} MB/day")
+            
+            if stats.language_stats:
+                click.echo(f"\n{Fore.CYAN}Language Statistics:")
+                for lang, count in sorted(stats.language_stats.items(), key=lambda x: x[1], reverse=True)[:10]:
+                    click.echo(f"  {lang}: {count} files")
+    
+    except NotARepositoryError:
+        click.echo(f"{Fore.RED}[ChronoLog] Not in a ChronoLog directory")
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"{Fore.RED}[ChronoLog] Error: {e}")
+        sys.exit(1)
+
+
+@analytics.command('metrics')
+@click.option('--days', default=7, help='Number of days to analyze')
+@click.option('--limit', default=100, help='Maximum number of operations to show')
+def analytics_metrics(days, limit):
+    """Show performance metrics"""
+    try:
+        repo = ChronologRepo()
+        analytics = PerformanceAnalytics(repo.repo_path)
+        
+        click.echo(f"{Fore.CYAN}[ChronoLog] Collecting performance metrics...")
+        metrics = analytics.get_operation_metrics(days=days, limit=limit)
+        
+        if not metrics:
+            click.echo(f"{Fore.YELLOW}[ChronoLog] No metrics found for the last {days} days")
+            return
+        
+        click.echo(f"\n{Fore.GREEN}Performance Metrics (Last {days} days):")
+        click.echo(f"{'-' * 80}")
+        click.echo(f"{'Operation':<15} {'Duration':<10} {'Files':<8} {'Timestamp':<20} {'Status':<8}")
+        click.echo(f"{'-' * 80}")
+        
+        for metric in metrics[-20:]:  # Show last 20 operations
+            duration = f"{metric.get('duration', 0):.3f}s"
+            files = str(metric.get('files_processed', 0))
+            timestamp = metric.get('timestamp', '')[:19] if metric.get('timestamp') else 'N/A'
+            status = 'OK' if metric.get('success', True) else 'ERROR'
+            operation = metric.get('operation_type', 'unknown')[:14]
+            
+            color = Fore.GREEN if status == 'OK' else Fore.RED
+            click.echo(f"{operation:<15} {duration:<10} {files:<8} {timestamp:<20} {color}{status}{Style.RESET_ALL}")
+    
+    except NotARepositoryError:
+        click.echo(f"{Fore.RED}[ChronoLog] Not in a ChronoLog directory")
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"{Fore.RED}[ChronoLog] Error: {e}")
+        sys.exit(1)
+
+
+@analytics.command('code-metrics')
+@click.option('--file-pattern', help='File pattern to analyze (e.g., "*.py")')
+@click.option('--output', type=click.Path(), help='Output file for detailed report')
+def analytics_code_metrics(file_pattern, output):
+    """Analyze code complexity and quality metrics"""
+    try:
+        repo = ChronologRepo()
+        metrics_collector = MetricsCollector(repo.repo_path)
+        
+        click.echo(f"{Fore.CYAN}[ChronoLog] Analyzing code metrics...")
+        
+        if file_pattern:
+            # Analyze specific pattern
+            from pathlib import Path
+            files = list(Path(repo.repo_path).glob(file_pattern))
+            results = []
+            for file_path in files:
+                if file_path.is_file():
+                    metrics = metrics_collector.analyze_file(file_path)
+                    results.append(metrics)
+        else:
+            # Analyze entire repository
+            results = metrics_collector.analyze_repository()
+        
+        if not results:
+            click.echo(f"{Fore.YELLOW}[ChronoLog] No code files found to analyze")
+            return
+        
+        # Calculate summary statistics
+        total_loc = sum(m.lines_of_code for m in results)
+        avg_complexity = sum(m.cyclomatic_complexity for m in results) / len(results)
+        avg_maintainability = sum(m.maintainability_index for m in results) / len(results)
+        
+        click.echo(f"\n{Fore.GREEN}Code Quality Summary:")
+        click.echo(f"  Files Analyzed: {len(results)}")
+        click.echo(f"  Total Lines of Code: {total_loc}")
+        click.echo(f"  Average Complexity: {avg_complexity:.2f}")
+        click.echo(f"  Average Maintainability: {avg_maintainability:.2f}")
+        
+        # Show top complex files
+        complex_files = sorted(results, key=lambda x: x.cyclomatic_complexity, reverse=True)[:5]
+        click.echo(f"\n{Fore.YELLOW}Most Complex Files:")
+        for metric in complex_files:
+            click.echo(f"  {metric.file_path.name}: {metric.cyclomatic_complexity:.1f} complexity")
+        
+        if output:
+            metrics_collector.export_metrics_report(results, Path(output))
+            click.echo(f"\n{Fore.GREEN}[ChronoLog] Detailed report saved to {output}")
+    
+    except NotARepositoryError:
+        click.echo(f"{Fore.RED}[ChronoLog] Not in a ChronoLog directory")
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"{Fore.RED}[ChronoLog] Error: {e}")
+        sys.exit(1)
+
+
+@analytics.command('visualize')
+@click.argument('metric_type', type=click.Choice(['activity', 'languages', 'complexity', 'growth']))
+@click.option('--days', default=30, help='Number of days for time-based charts')
+@click.option('--width', default=60, help='Chart width in characters')
+def analytics_visualize(metric_type, days, width):
+    """Create text-based visualizations of repository metrics"""
+    try:
+        repo = ChronologRepo()
+        analytics = PerformanceAnalytics(repo.repo_path)
+        visualization = Visualization()
+        
+        click.echo(f"{Fore.CYAN}[ChronoLog] Creating {metric_type} visualization...")
+        
+        if metric_type == 'activity':
+            metrics = analytics.get_operation_metrics(days=days)
+            if metrics:
+                # Create activity calendar
+                dates = [m.get('timestamp', '')[:10] for m in metrics if m.get('timestamp')]
+                chart = visualization.create_activity_calendar(dates, width=width)
+                click.echo(f"\n{Fore.GREEN}Activity Calendar (Last {days} days):")
+                click.echo(chart)
+            else:
+                click.echo(f"{Fore.YELLOW}[ChronoLog] No activity data found")
+        
+        elif metric_type == 'languages':
+            stats = analytics.collect_repository_stats()
+            if stats.language_stats:
+                languages = list(stats.language_stats.keys())[:10]
+                counts = [stats.language_stats[lang] for lang in languages]
+                chart = visualization.create_bar_chart(languages, counts, title="Language Distribution")
+                click.echo(f"\n{Fore.GREEN}Language Distribution:")
+                click.echo(chart)
+            else:
+                click.echo(f"{Fore.YELLOW}[ChronoLog] No language statistics available")
+        
+        elif metric_type == 'complexity':
+            from .analytics.metrics_collector import MetricsCollector
+            metrics_collector = MetricsCollector(repo.repo_path)
+            results = metrics_collector.analyze_repository()
+            
+            if results:
+                files = [r.file_path.name[:20] for r in results[:10]]
+                complexities = [r.cyclomatic_complexity for r in results[:10]]
+                chart = visualization.create_bar_chart(files, complexities, title="Code Complexity")
+                click.echo(f"\n{Fore.GREEN}Code Complexity (Top 10 Files):")
+                click.echo(chart)
+            else:
+                click.echo(f"{Fore.YELLOW}[ChronoLog] No code complexity data available")
+        
+        elif metric_type == 'growth':
+            stats = analytics.collect_repository_stats()
+            # Create sparkline for repository growth
+            sparkline = visualization.create_sparkline([stats.growth_rate_mb_per_day] * 7, width=width)
+            click.echo(f"\n{Fore.GREEN}Repository Growth Trend:")
+            click.echo(f"Growth Rate: {stats.growth_rate_mb_per_day:.2f} MB/day")
+            click.echo(sparkline)
+    
+    except NotARepositoryError:
+        click.echo(f"{Fore.RED}[ChronoLog] Not in a ChronoLog directory")
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"{Fore.RED}[ChronoLog] Error: {e}")
+        sys.exit(1)
+
+
+@main.group()
+def optimize():
+    """Storage optimization and maintenance"""
+    pass
+
+
+@optimize.command('storage')
+@click.option('--dry-run', is_flag=True, help='Show what would be optimized without doing it')
+@click.option('--algorithm', type=click.Choice(['zlib', 'lzma', 'bz2']), 
+              default='zlib', help='Compression algorithm to use')
+def optimize_storage(dry_run, algorithm):
+    """Optimize repository storage and compression"""
+    try:
+        repo = ChronologRepo()
+        optimizer = StorageOptimizer(repo.repo_path)
+        
+        if dry_run:
+            click.echo(f"{Fore.CYAN}[ChronoLog] Analyzing storage optimization opportunities...")
+            recommendations = optimizer.get_storage_recommendations()
+            
+            if not recommendations:
+                click.echo(f"{Fore.GREEN}[ChronoLog] Storage is already well optimized!")
+                return
+            
+            click.echo(f"\n{Fore.YELLOW}Storage Optimization Recommendations:")
+            for rec in recommendations:
+                click.echo(f"  {rec.description}")
+                click.echo(f"    Potential savings: {rec.potential_savings_mb:.2f} MB")
+                click.echo(f"    Priority: {rec.priority}")
+        else:
+            click.echo(f"{Fore.CYAN}[ChronoLog] Optimizing storage with {algorithm} compression...")
+            results = optimizer.optimize_storage()
+            
+            click.echo(f"\n{Fore.GREEN}Storage Optimization Results:")
+            click.echo(f"  Original size: {results['original_size_mb']:.2f} MB")
+            click.echo(f"  Optimized size: {results['optimized_size_mb']:.2f} MB")
+            click.echo(f"  Space saved: {results['space_saved_mb']:.2f} MB")
+            click.echo(f"  Compression ratio: {results['compression_ratio']:.2f}")
+            click.echo(f"  Files processed: {results['files_processed']}")
+            click.echo(f"  Duplicates removed: {results['duplicates_removed']}")
+    
+    except NotARepositoryError:
+        click.echo(f"{Fore.RED}[ChronoLog] Not in a ChronoLog directory")
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"{Fore.RED}[ChronoLog] Error: {e}")
+        sys.exit(1)
+
+
+@optimize.command('gc')
+@click.option('--aggressive', is_flag=True, help='Perform aggressive garbage collection')
+@click.option('--verify', is_flag=True, help='Verify database integrity before cleanup')
+def optimize_gc(aggressive, verify):
+    """Run garbage collection to clean up orphaned data"""
+    try:
+        repo = ChronologRepo()
+        gc = GarbageCollector(repo.repo_path)
+        
+        if verify:
+            click.echo(f"{Fore.CYAN}[ChronoLog] Verifying database integrity...")
+            integrity_results = gc.verify_database_integrity()
+            
+            if integrity_results['corrupted_versions']:
+                click.echo(f"{Fore.RED}Found {len(integrity_results['corrupted_versions'])} corrupted versions")
+                for version_id in integrity_results['corrupted_versions']:
+                    click.echo(f"  - {version_id}")
+            else:
+                click.echo(f"{Fore.GREEN}Database integrity check passed")
+        
+        click.echo(f"{Fore.CYAN}[ChronoLog] Running garbage collection...")
+        results = gc.collect_garbage()
+        
+        click.echo(f"\n{Fore.GREEN}Garbage Collection Results:")
+        click.echo(f"  Orphaned objects removed: {results['orphaned_objects_removed']}")
+        click.echo(f"  Temporary files cleaned: {results['temp_files_cleaned']}")
+        click.echo(f"  Empty directories removed: {results['empty_dirs_removed']}")
+        click.echo(f"  Database space reclaimed: {results['database_space_reclaimed_mb']:.2f} MB")
+        click.echo(f"  Storage space reclaimed: {results['storage_space_reclaimed_mb']:.2f} MB")
+        
+        if results['errors']:
+            click.echo(f"\n{Fore.YELLOW}Warnings/Errors:")
+            for error in results['errors']:
+                click.echo(f"  - {error}")
+    
+    except NotARepositoryError:
+        click.echo(f"{Fore.RED}[ChronoLog] Not in a ChronoLog directory")
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"{Fore.RED}[ChronoLog] Error: {e}")
+        sys.exit(1)
+
+
+@main.group()
+def hooks():
+    """Manage repository hooks and automation"""
+    pass
+
+
+@hooks.command('list')
+def hooks_list():
+    """List all registered hooks"""
+    try:
+        repo = ChronologRepo()
+        hook_manager = HookManager(repo.repo_path)
+        
+        all_hooks = hook_manager.list_hooks()
+        
+        if not all_hooks:
+            click.echo(f"{Fore.YELLOW}[ChronoLog] No hooks registered")
+            return
+        
+        click.echo(f"\n{Fore.GREEN}Registered Hooks:")
+        for event, hooks in all_hooks.items():
+            click.echo(f"\n{Fore.CYAN}{event}:")
+            for hook in hooks:
+                click.echo(f"  - {hook['name']}: {hook['script_path']}")
+                if hook.get('description'):
+                    click.echo(f"    {hook['description']}")
+    
+    except NotARepositoryError:
+        click.echo(f"{Fore.RED}[ChronoLog] Not in a ChronoLog directory")
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"{Fore.RED}[ChronoLog] Error: {e}")
+        sys.exit(1)
+
+
+@hooks.command('add')
+@click.argument('event', type=click.Choice(['pre_version', 'post_version', 'pre_checkout', 'post_checkout']))
+@click.argument('script_path', type=click.Path(exists=True))
+@click.option('--name', help='Hook name')
+@click.option('--description', help='Hook description')
+def hooks_add(event, script_path, name, description):
+    """Add a new hook for the specified event"""
+    try:
+        repo = ChronologRepo()
+        hook_manager = HookManager(repo.repo_path)
+        
+        from .hooks.hook_manager import HookEvent
+        hook_event = getattr(HookEvent, event.upper())
+        
+        hook_name = name or Path(script_path).stem
+        success = hook_manager.register_script_hook(
+            event=hook_event,
+            script_path=Path(script_path),
+            name=hook_name,
+            description=description
+        )
+        
+        if success:
+            click.echo(f"{Fore.GREEN}[ChronoLog] Hook '{hook_name}' added for {event}")
+        else:
+            click.echo(f"{Fore.RED}[ChronoLog] Failed to add hook")
+    
+    except NotARepositoryError:
+        click.echo(f"{Fore.RED}[ChronoLog] Not in a ChronoLog directory")
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"{Fore.RED}[ChronoLog] Error: {e}")
+        sys.exit(1)
+
+
+@hooks.command('remove')
+@click.argument('event', type=click.Choice(['pre_version', 'post_version', 'pre_checkout', 'post_checkout']))
+@click.argument('hook_name')
+def hooks_remove(event, hook_name):
+    """Remove a hook"""
+    try:
+        repo = ChronologRepo()
+        hook_manager = HookManager(repo.repo_path)
+        
+        from .hooks.hook_manager import HookEvent
+        hook_event = getattr(HookEvent, event.upper())
+        
+        success = hook_manager.unregister_hook(hook_event, hook_name)
+        
+        if success:
+            click.echo(f"{Fore.GREEN}[ChronoLog] Hook '{hook_name}' removed from {event}")
+        else:
+            click.echo(f"{Fore.RED}[ChronoLog] Hook not found")
+    
+    except NotARepositoryError:
+        click.echo(f"{Fore.RED}[ChronoLog] Not in a ChronoLog directory")
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"{Fore.RED}[ChronoLog] Error: {e}")
+        sys.exit(1)
+
+
+@hooks.command('test')
+@click.argument('event', type=click.Choice(['pre_version', 'post_version', 'pre_checkout', 'post_checkout']))
+@click.option('--hook-name', help='Test specific hook by name')
+def hooks_test(event, hook_name):
+    """Test hooks for the specified event"""
+    try:
+        repo = ChronologRepo()
+        hook_manager = HookManager(repo.repo_path)
+        
+        from .hooks.hook_manager import HookEvent, HookContext
+        hook_event = getattr(HookEvent, event.upper())
+        
+        # Create test context
+        test_context = HookContext(
+            event=hook_event,
+            repository_path=repo.repo_path,
+            file_path=None,
+            version_id="test",
+            metadata={"test": True}
+        )
+        
+        click.echo(f"{Fore.CYAN}[ChronoLog] Testing {event} hooks...")
+        results = hook_manager.trigger_hooks(hook_event, test_context)
+        
+        for result in results:
+            status = "✓" if result.success else "✗"
+            color = Fore.GREEN if result.success else Fore.RED
+            click.echo(f"{color}{status} {result.hook_name}: {result.message}{Style.RESET_ALL}")
+            
+            if result.output:
+                click.echo(f"    Output: {result.output}")
+            if not result.success and result.error:
+                click.echo(f"    Error: {result.error}")
+    
+    except NotARepositoryError:
+        click.echo(f"{Fore.RED}[ChronoLog] Not in a ChronoLog directory")
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"{Fore.RED}[ChronoLog] Error: {e}")
+        sys.exit(1)
+
+
+@main.group()
+def users():
+    """User management and authentication"""
+    pass
+
+
+@users.command('init')
+@click.option('--admin-username', default='admin', help='Admin username')
+@click.option('--admin-password', prompt=True, hide_input=True, help='Admin password')
+@click.option('--admin-email', help='Admin email address')
+def users_init(admin_username, admin_password, admin_email):
+    """Initialize user management system"""
+    try:
+        repo = ChronologRepo()
+        user_manager = UserManager(repo.repo_path)
+        
+        if user_manager.has_users():
+            click.echo(f"{Fore.YELLOW}[ChronoLog] User system already initialized")
+            return
+        
+        click.echo(f"{Fore.CYAN}[ChronoLog] Initializing user management system...")
+        admin_id = user_manager.create_admin_user(
+            username=admin_username,
+            password=admin_password,
+            email=admin_email
+        )
+        
+        if admin_id:
+            click.echo(f"{Fore.GREEN}[ChronoLog] User system initialized with admin user '{admin_username}'")
+        else:
+            click.echo(f"{Fore.RED}[ChronoLog] Failed to initialize user system")
+    
+    except NotARepositoryError:
+        click.echo(f"{Fore.RED}[ChronoLog] Not in a ChronoLog directory")
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"{Fore.RED}[ChronoLog] Error: {e}")
+        sys.exit(1)
+
+
+@users.command('list')
+def users_list():
+    """List all users"""
+    try:
+        repo = ChronologRepo()
+        user_manager = UserManager(repo.repo_path)
+        
+        users = user_manager.list_users()
+        
+        if not users:
+            click.echo(f"{Fore.YELLOW}[ChronoLog] No users found. Run 'chronolog users init' first.")
+            return
+        
+        click.echo(f"\n{Fore.GREEN}Users:")
+        click.echo(f"{'-' * 80}")
+        click.echo(f"{'Username':<20} {'Role':<10} {'Email':<30} {'Status':<8} {'Last Active'}")
+        click.echo(f"{'-' * 80}")
+        
+        for user in users:
+            status = 'Active' if user.is_active else 'Inactive'
+            last_active = user.last_active.strftime('%Y-%m-%d') if user.last_active else 'Never'
+            email = user.email or 'N/A'
+            
+            click.echo(f"{user.username:<20} {user.role.value:<10} {email:<30} {status:<8} {last_active}")
+    
+    except NotARepositoryError:
+        click.echo(f"{Fore.RED}[ChronoLog] Not in a ChronoLog directory")
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"{Fore.RED}[ChronoLog] Error: {e}")
+        sys.exit(1)
+
+
+@users.command('create')
+@click.argument('username')
+@click.option('--password', prompt=True, hide_input=True, help='User password')
+@click.option('--email', help='User email address')
+@click.option('--full-name', help='User full name')
+@click.option('--role', type=click.Choice(['admin', 'user', 'readonly']), default='user', help='User role')
+def users_create(username, password, email, full_name, role):
+    """Create a new user"""
+    try:
+        repo = ChronologRepo()
+        user_manager = UserManager(repo.repo_path)
+        
+        from .users.user_manager import UserRole
+        user_role = getattr(UserRole, role.upper())
+        
+        user_id = user_manager.create_user(
+            username=username,
+            password=password,
+            email=email,
+            full_name=full_name,
+            role=user_role
+        )
+        
+        if user_id:
+            click.echo(f"{Fore.GREEN}[ChronoLog] User '{username}' created successfully")
+        else:
+            click.echo(f"{Fore.RED}[ChronoLog] Failed to create user (username may already exist)")
+    
+    except NotARepositoryError:
+        click.echo(f"{Fore.RED}[ChronoLog] Not in a ChronoLog directory")
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"{Fore.RED}[ChronoLog] Error: {e}")
+        sys.exit(1)
+
+
+@users.command('delete')
+@click.argument('username')
+@click.option('--force', is_flag=True, help='Force deletion without confirmation')
+def users_delete(username, force):
+    """Delete a user"""
+    try:
+        repo = ChronologRepo()
+        user_manager = UserManager(repo.repo_path)
+        
+        user = user_manager.get_user_by_username(username)
+        if not user:
+            click.echo(f"{Fore.RED}[ChronoLog] User '{username}' not found")
+            sys.exit(1)
+        
+        if not force:
+            if not click.confirm(f"Are you sure you want to delete user '{username}'?"):
+                click.echo("Cancelled")
+                return
+        
+        success = user_manager.delete_user(user.id)
+        
+        if success:
+            click.echo(f"{Fore.GREEN}[ChronoLog] User '{username}' deleted successfully")
+        else:
+            click.echo(f"{Fore.RED}[ChronoLog] Failed to delete user")
+    
+    except NotARepositoryError:
+        click.echo(f"{Fore.RED}[ChronoLog] Not in a ChronoLog directory")
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"{Fore.RED}[ChronoLog] Error: {e}")
+        sys.exit(1)
+
+
+@main.group()
+def merge():
+    """Merge operations and conflict resolution"""
+    pass
+
+
+@merge.command('preview')
+@click.argument('base_version')
+@click.argument('our_version')
+@click.argument('their_version')
+@click.option('--file-path', help='Preview merge for specific file')
+def merge_preview(base_version, our_version, their_version, file_path):
+    """Preview a three-way merge operation"""
+    try:
+        repo = ChronologRepo()
+        merge_engine = MergeEngine()
+        
+        click.echo(f"{Fore.CYAN}[ChronoLog] Previewing merge...")
+        click.echo(f"  Base: {base_version[:8]}")
+        click.echo(f"  Ours: {our_version[:8]}")
+        click.echo(f"  Theirs: {their_version[:8]}")
+        
+        # Get version data (simplified - in real implementation would handle file-by-file)
+        from .storage.storage import ChronoLogStorage
+        storage = ChronoLogStorage(repo.repo_path)
+        
+        base_data = storage.get_version(base_version)
+        our_data = storage.get_version(our_version)
+        their_data = storage.get_version(their_version)
+        
+        if not all([base_data, our_data, their_data]):
+            click.echo(f"{Fore.RED}[ChronoLog] One or more versions not found")
+            sys.exit(1)
+        
+        # Perform merge preview
+        merge_result = merge_engine.three_way_merge(
+            base=str(base_data).encode(),
+            ours=str(our_data).encode(),
+            theirs=str(their_data).encode()
+        )
+        
+        if merge_result.success:
+            click.echo(f"{Fore.GREEN}[ChronoLog] ✓ Merge can be performed automatically")
+            click.echo(f"  Result size: {len(merge_result.content)} bytes")
+        else:
+            click.echo(f"{Fore.YELLOW}[ChronoLog] ⚠ Merge has conflicts")
+            click.echo(f"  Conflicts found: {len(merge_result.conflicts)}")
+            
+            for i, conflict in enumerate(merge_result.conflicts[:5], 1):
+                click.echo(f"\n  Conflict {i}:")
+                click.echo(f"    Type: {conflict.conflict_type}")
+                click.echo(f"    Lines: {conflict.start_line}-{conflict.end_line}")
+    
+    except NotARepositoryError:
+        click.echo(f"{Fore.RED}[ChronoLog] Not in a ChronoLog directory")
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"{Fore.RED}[ChronoLog] Error: {e}")
+        sys.exit(1)
+
+
+@merge.command('resolve')
+@click.argument('conflict_file', type=click.Path(exists=True))
+@click.option('--strategy', type=click.Choice(['ours', 'theirs', 'manual']), 
+              default='manual', help='Conflict resolution strategy')
+def merge_resolve(conflict_file, strategy):
+    """Resolve merge conflicts in a file"""
+    try:
+        repo = ChronologRepo()
+        conflict_resolver = ConflictResolver()
+        
+        click.echo(f"{Fore.CYAN}[ChronoLog] Resolving conflicts in {conflict_file}...")
+        
+        with open(conflict_file, 'r') as f:
+            content = f.read()
+        
+        if strategy == 'manual':
+            click.echo(f"{Fore.YELLOW}[ChronoLog] Manual conflict resolution not implemented in CLI")
+            click.echo(f"Please use the web interface or TUI for interactive resolution")
+        else:
+            resolved_content = conflict_resolver.auto_resolve_conflicts(content, strategy)
+            
+            if resolved_content:
+                with open(conflict_file, 'w') as f:
+                    f.write(resolved_content)
+                click.echo(f"{Fore.GREEN}[ChronoLog] Conflicts resolved using '{strategy}' strategy")
+            else:
+                click.echo(f"{Fore.RED}[ChronoLog] Failed to resolve conflicts automatically")
+    
+    except Exception as e:
+        click.echo(f"{Fore.RED}[ChronoLog] Error: {e}")
+        sys.exit(1)
+
+
+@main.group()
+def web():
+    """Web server management"""
+    pass
+
+
+@web.command('start')
+@click.option('--host', default='127.0.0.1', help='Host to bind to')
+@click.option('--port', default=5000, help='Port to bind to')
+@click.option('--debug', is_flag=True, help='Enable debug mode')
+def web_start(host, port, debug):
+    """Start the web server"""
+    try:
+        repo = ChronologRepo()
+        
+        click.echo(f"{Fore.CYAN}[ChronoLog] Starting web server...")
+        click.echo(f"  Host: {host}")
+        click.echo(f"  Port: {port}")
+        click.echo(f"  Debug: {debug}")
+        
+        web_server = WebServer(repo.repo_path, host=host, port=port)
+        
+        click.echo(f"{Fore.GREEN}[ChronoLog] Web server starting at http://{host}:{port}")
+        click.echo(f"{Fore.YELLOW}Press Ctrl+C to stop the server")
+        
+        web_server.start(debug=debug)
+    
+    except NotARepositoryError:
+        click.echo(f"{Fore.RED}[ChronoLog] Not in a ChronoLog directory")
+        sys.exit(1)
+    except KeyboardInterrupt:
+        click.echo(f"\n{Fore.YELLOW}[ChronoLog] Web server stopped")
+    except Exception as e:
+        click.echo(f"{Fore.RED}[ChronoLog] Error: {e}")
+        sys.exit(1)
+
+
+@web.command('status')
+def web_status():
+    """Check web server status"""
+    try:
+        import requests
+        response = requests.get('http://127.0.0.1:5000/api/v1/health', timeout=5)
+        
+        if response.status_code == 200:
+            data = response.json()
+            click.echo(f"{Fore.GREEN}[ChronoLog] Web server is running")
+            click.echo(f"  Status: {data.get('status', 'unknown')}")
+            click.echo(f"  Version: {data.get('version', 'unknown')}")
+        else:
+            click.echo(f"{Fore.YELLOW}[ChronoLog] Web server responded with status {response.status_code}")
+    
+    except requests.exceptions.ConnectionError:
+        click.echo(f"{Fore.RED}[ChronoLog] Web server is not running")
+    except Exception as e:
+        click.echo(f"{Fore.RED}[ChronoLog] Error checking server status: {e}")
 
 
 if __name__ == '__main__':

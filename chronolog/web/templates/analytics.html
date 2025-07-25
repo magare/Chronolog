@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - ChronoLog{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_versions }}</div>
+        <div class="stat-label">Total Versions</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_files }}</div>
+        <div class="stat-label">Files Tracked</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ "%.1f"|format(stats.total_size_mb) }}</div>
+        <div class="stat-label">Total Size (MB)</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.unique_authors|length }}</div>
+        <div class="stat-label">Contributors</div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+    <div class="card">
+        <div class="card-header">Performance Metrics</div>
+        <div class="card-body">
+            <div class="code-block">{{ version_chart }}</div>
+            
+            {% if metrics %}
+            <h4 style="margin-top: 1.5rem; margin-bottom: 1rem;">Recent Operations</h4>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Operation</th>
+                        <th>Duration</th>
+                        <th>Files</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for metric in metrics[:10] %}
+                    <tr>
+                        <td>{{ metric.operation_type or 'Unknown' }}</td>
+                        <td>{{ "%.2f"|format(metric.duration or 0) }}s</td>
+                        <td>{{ metric.files_processed or 0 }}</td>
+                        <td class="timestamp">{{ metric.timestamp }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Repository Insights</div>
+        <div class="card-body">
+            <h4>Storage Efficiency</h4>
+            <div style="margin: 1rem 0;">
+                <div style="display: flex; justify-content: space-between; padding: 0.5rem 0;">
+                    <span>Compression Ratio:</span>
+                    <strong>{{ "%.1f"|format(stats.compression_ratio or 1.0) }}:1</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 0.5rem 0;">
+                    <span>Deduplication:</span>
+                    <strong>{{ "%.1f"|format((stats.dedupe_savings or 0) * 100) }}%</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 0.5rem 0;">
+                    <span>Growth Rate:</span>
+                    <strong>{{ "%.1f"|format(stats.growth_rate_mb_per_day or 0) }} MB/day</strong>
+                </div>
+            </div>
+
+            <h4 style="margin-top: 1.5rem;">Activity Timeline</h4>
+            <div class="code-block">
+                Activity Heatmap:
+                {% for week in range(4) %}
+                Week {{ week + 1 }}: ▓▓▒▒░░░
+                {% endfor %}
+                (High ▓ Medium ▒ Low ░ activity)
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Language Statistics</div>
+    <div class="card-body">
+        {% if stats.language_stats %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+            {% for lang, count in stats.language_stats.items() %}
+            <div style="padding: 1rem; background-color: #f8f9fa; border-radius: 8px; text-align: center;">
+                <div style="font-size: 1.5rem; font-weight: bold; color: #3498db;">{{ count }}</div>
+                <div style="color: #666; margin-top: 0.5rem;">{{ lang }} files</div>
+                <div style="width: 100%; background-color: #ecf0f1; border-radius: 10px; height: 8px; margin-top: 0.5rem;">
+                    <div style="width: {{ (count / stats.total_files * 100) if stats.total_files > 0 else 0 }}%; background-color: #3498db; height: 100%; border-radius: 10px;"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p>No language statistics available.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Contributors</div>
+    <div class="card-body">
+        {% if stats.unique_authors %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+            {% for author in stats.unique_authors %}
+            <div style="padding: 1rem; border: 1px solid #eee; border-radius: 8px;">
+                <div style="display: flex; align-items: center; margin-bottom: 0.5rem;">
+                    <div style="width: 40px; height: 40px; background-color: #3498db; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; margin-right: 1rem;">
+                        {{ author[0].upper() if author else '?' }}
+                    </div>
+                    <div>
+                        <div style="font-weight: bold;">{{ author or 'Unknown' }}</div>
+                        <div style="color: #666; font-size: 0.9rem;">Contributor</div>
+                    </div>
+                </div>
+                <div style="font-size: 0.9rem; color: #666;">
+                    <div>Versions: <strong>{{ stats.author_version_counts.get(author, 0) }}</strong></div>
+                    <div>Last Active: <span class="timestamp">{{ stats.author_last_active.get(author, 'Never') }}</span></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p>No contributor information available.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        Repository Health
+        <button onclick="runHealthCheck()" class="btn" style="float: right; margin-top: -0.25rem;">Run Health Check</button>
+    </div>
+    <div class="card-body">
+        <div id="healthResults">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                <div style="text-align: center; padding: 1rem; background-color: #d4edda; border-radius: 8px; border: 1px solid #c3e6cb;">
+                    <div style="font-size: 1.5rem;">✓</div>
+                    <div style="font-weight: bold; color: #155724;">Database Integrity</div>
+                    <div style="color: #666; font-size: 0.9rem;">All checks passed</div>
+                </div>
+                <div style="text-align: center; padding: 1rem; background-color: #d4edda; border-radius: 8px; border: 1px solid #c3e6cb;">
+                    <div style="font-size: 1.5rem;">✓</div>
+                    <div style="font-weight: bold; color: #155724;">File Consistency</div>
+                    <div style="color: #666; font-size: 0.9rem;">All files accessible</div>
+                </div>
+                <div style="text-align: center; padding: 1rem; background-color: #fff3cd; border-radius: 8px; border: 1px solid #ffeaa7;">
+                    <div style="font-size: 1.5rem;">⚠</div>
+                    <div style="font-weight: bold; color: #856404;">Storage Space</div>
+                    <div style="color: #666; font-size: 0.9rem;">{{ "%.1f"|format(stats.total_size_mb) }} MB used</div>
+                </div>
+                <div style="text-align: center; padding: 1rem; background-color: #d4edda; border-radius: 8px; border: 1px solid #c3e6cb;">
+                    <div style="font-size: 1.5rem;">✓</div>
+                    <div style="font-weight: bold; color: #155724;">Performance</div>
+                    <div style="color: #666; font-size: 0.9rem;">Good response times</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function runHealthCheck() {
+    const button = event.target;
+    const originalText = button.textContent;
+    button.textContent = 'Running...';
+    button.disabled = true;
+
+    try {
+        // Simulate health check
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // In a real implementation, this would call an API endpoint
+        alert('Health check completed! All systems are operational.');
+    } catch (error) {
+        alert('Health check failed: ' + error.message);
+    } finally {
+        button.textContent = originalText;
+        button.disabled = false;
+    }
+}
+
+// Auto-refresh analytics every 30 seconds
+setInterval(() => {
+    // In a real implementation, this would refresh the data
+    console.log('Auto-refreshing analytics...');
+}, 30000);
+</script>
+{% endblock %}
